@@ -21,6 +21,8 @@ model_choice = st.selectbox(
     ["Logistic Regression", "Decision Tree", "KNN", "Naive Bayes", "Random Forest", "XGBoost"]
 )
 
+evaluate_button = st.button("Run Evaluation")
+
 model_paths = {
     "Logistic Regression": "saved_models/logistic.pkl",
     "Decision Tree": "saved_models/tree.pkl",
@@ -30,7 +32,6 @@ model_paths = {
     "XGBoost": "saved_models/xgboost.pkl"
 }
 
-# Correct training feature order (VERY IMPORTANT)
 training_features = [
     'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
     'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
@@ -43,23 +44,18 @@ training_features = [
 if uploaded_file is not None:
 
     df = pd.read_csv(uploaded_file)
-
-    # Remove unwanted index columns
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-    # Fix raw UCI format (if headers are in first row)
     if "LIMIT_BAL" not in df.columns and "X1" in df.columns:
         df.columns = df.iloc[0]
         df = df[1:]
         df.reset_index(drop=True, inplace=True)
 
-    # Rename target automatically
     if "default payment next month" in df.columns:
         df = df.rename(columns={"default payment next month": "credit_default"})
     if "Y" in df.columns:
         df = df.rename(columns={"Y": "credit_default"})
 
-    # Drop ID if exists
     if "ID" in df.columns:
         df = df.drop(columns=["ID"])
 
@@ -72,40 +68,42 @@ if uploaded_file is not None:
         y_true = df["credit_default"]
         X_raw = df.drop("credit_default", axis=1)
 
-        #  Force feature names to match training order
         X_raw.columns = training_features
         X = X_raw[training_features]
 
-        model = joblib.load(model_paths[model_choice])
-        scaler = joblib.load("saved_models/scaler.pkl")
+        if evaluate_button:
 
-        if model_choice in ["Logistic Regression", "KNN"]:
-            X = scaler.transform(X.values)
+            model = joblib.load(model_paths[model_choice])
+            scaler = joblib.load("saved_models/scaler.pkl")
 
-        y_pred = model.predict(X)
+            if model_choice in ["Logistic Regression", "KNN"]:
+                X = scaler.transform(X.values)
 
-        if hasattr(model, "predict_proba"):
-            y_prob = model.predict_proba(X)[:, 1]
-            auc = roc_auc_score(y_true, y_prob)
-        else:
-            auc = "N/A"
+            y_pred = model.predict(X)
 
-        accuracy = accuracy_score(y_true, y_pred)
-        precision = precision_score(y_true, y_pred)
-        recall = recall_score(y_true, y_pred)
-        f1 = f1_score(y_true, y_pred)
-        mcc = matthews_corrcoef(y_true, y_pred)
+            if hasattr(model, "predict_proba"):
+                y_prob = model.predict_proba(X)[:, 1]
+                auc = roc_auc_score(y_true, y_prob)
+            else:
+                auc = "N/A"
 
-        st.subheader("Evaluation Metrics")
-        st.write(f"Accuracy: {accuracy:.4f}")
-        st.write(f"AUC: {auc}")
-        st.write(f"Precision: {precision:.4f}")
-        st.write(f"Recall: {recall:.4f}")
-        st.write(f"F1 Score: {f1:.4f}")
-        st.write(f"MCC: {mcc:.4f}")
+            accuracy = accuracy_score(y_true, y_pred)
+            precision = precision_score(y_true, y_pred)
+            recall = recall_score(y_true, y_pred)
+            f1 = f1_score(y_true, y_pred)
+            mcc = matthews_corrcoef(y_true, y_pred)
 
-        st.subheader("Confusion Matrix")
-        st.write(confusion_matrix(y_true, y_pred))
+            st.subheader("Evaluation Metrics")
+            st.write(f"Accuracy: {accuracy:.4f}")
+            st.write(f"AUC: {auc}")
+            st.write(f"Precision: {precision:.4f}")
+            st.write(f"Recall: {recall:.4f}")
+            st.write(f"F1 Score: {f1:.4f}")
+            st.write(f"MCC: {mcc:.4f}")
 
-        st.subheader("Classification Report")
-        st.text(classification_report(y_true, y_pred))
+            st.subheader("Confusion Matrix")
+            st.write(confusion_matrix(y_true, y_pred))
+
+            st.subheader("Classification Report")
+            st.text(classification_report(y_true, y_pred))
+
