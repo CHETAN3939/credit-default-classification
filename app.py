@@ -10,7 +10,6 @@ Original file is located at
 import streamlit as st
 import pandas as pd
 import joblib
-import os
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, matthews_corrcoef, confusion_matrix, classification_report
 
 st.title("Credit Card Default Prediction App")
@@ -35,14 +34,14 @@ if uploaded_file is not None:
 
     df = pd.read_csv(uploaded_file)
 
-    
+    # Remove unwanted index columns
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-    
+    # Drop ID column if exists
     if "ID" in df.columns:
         df = df.drop(columns=["ID"])
 
-    
+    # Handle different target column names
     if "default payment next month" in df.columns:
         df = df.rename(columns={"default payment next month": "credit_default"})
 
@@ -59,9 +58,9 @@ if uploaded_file is not None:
         model = joblib.load(model_paths[model_choice])
         scaler = joblib.load("saved_models/scaler.pkl")
 
-        # Scale only for models that need it
+        # IMPORTANT FIX: use .values to avoid feature name mismatch
         if model_choice in ["Logistic Regression", "KNN"]:
-            X = scaler.transform(X)
+            X = scaler.transform(X.values)
 
         y_pred = model.predict(X)
 
