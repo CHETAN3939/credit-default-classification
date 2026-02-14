@@ -30,6 +30,16 @@ model_paths = {
     "XGBoost": "saved_models/xgboost.pkl"
 }
 
+# Correct training feature order (VERY IMPORTANT)
+training_features = [
+    'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
+    'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
+    'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3',
+    'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
+    'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3',
+    'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
+]
+
 if uploaded_file is not None:
 
     df = pd.read_csv(uploaded_file)
@@ -37,28 +47,38 @@ if uploaded_file is not None:
     # Remove unwanted index columns
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-    # Drop ID column if exists
-    if "ID" in df.columns:
-        df = df.drop(columns=["ID"])
+    # Fix raw UCI format (if headers are in first row)
+    if "LIMIT_BAL" not in df.columns and "X1" in df.columns:
+        df.columns = df.iloc[0]
+        df = df[1:]
+        df.reset_index(drop=True, inplace=True)
 
-    # Handle different target column names
+    # Rename target automatically
     if "default payment next month" in df.columns:
         df = df.rename(columns={"default payment next month": "credit_default"})
-
     if "Y" in df.columns:
         df = df.rename(columns={"Y": "credit_default"})
 
+    # Drop ID if exists
+    if "ID" in df.columns:
+        df = df.drop(columns=["ID"])
+
     if "credit_default" not in df.columns:
-        st.error("CSV must contain target column: credit_default")
+        st.error("Target column not found.")
     else:
 
-        X = df.drop("credit_default", axis=1)
+        df = df.apply(pd.to_numeric)
+
         y_true = df["credit_default"]
+        X_raw = df.drop("credit_default", axis=1)
+
+        #  Force feature names to match training order
+        X_raw.columns = training_features
+        X = X_raw[training_features]
 
         model = joblib.load(model_paths[model_choice])
         scaler = joblib.load("saved_models/scaler.pkl")
 
-        # IMPORTANT FIX: use .values to avoid feature name mismatch
         if model_choice in ["Logistic Regression", "KNN"]:
             X = scaler.transform(X.values)
 
@@ -85,8 +105,7 @@ if uploaded_file is not None:
         st.write(f"MCC: {mcc:.4f}")
 
         st.subheader("Confusion Matrix")
-        cm = confusion_matrix(y_true, y_pred)
-        st.write(cm)
+        st.write(confusion_matrix(y_true, y_pred))
 
         st.subheader("Classification Report")
         st.text(classification_report(y_true, y_pred))
